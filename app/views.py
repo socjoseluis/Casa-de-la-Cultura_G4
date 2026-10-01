@@ -1435,3 +1435,179 @@ def resumen_ia_view(request):
 
 
     return JsonResponse({'resumen': ' '.join(partes)})
+
+
+
+def formato_numero(valor, decimales=0):
+
+    """Número con separadores españoles: 5976479 -> '5.976.479', 3.92 -> '3,92'."""
+
+    texto = f"{float(valor):,.{decimales}f}"
+
+    return texto.replace(',', 'X').replace('.', ',').replace('X', '.')
+
+
+
+def dashboard_view(request):
+
+    """
+
+    Dashboard del catálogo, de los gustos de los lectores y del recomendador.
+
+    Todo se lee de PostgreSQL: las cifras agregadas de las vistas
+
+    materializadas y los datos de Apriori de la ejecución activa.
+
+    """
+
+    from app import estadisticas
+
+    resumen = estadisticas.resumen_catalogo()
+
+    distribucion = estadisticas.distribucion_valoraciones()
+
+    generos = estadisticas.gustos_por_genero()
+
+    mas_leidos = estadisticas.libros_mas_leidos()
+
+    mejor_valorados = estadisticas.libros_mejor_valorados()
+
+    apriori = estadisticas.ejecucion_apriori_activa()
+
+    reglas = estadisticas.reglas_mas_fuertes() if apriori else []
+
+
+
+    tarjetas = [
+
+        ('Libros', formato_numero(resumen['libros'])),
+
+        ('Ejemplares', formato_numero(resumen['ejemplares'])),
+
+        ('Lectores', formato_numero(resumen['lectores'])),
+
+        ('Valoraciones', formato_numero(resumen['valoraciones'] or 0)),
+
+        ('Nota media', formato_numero(resumen['nota_media'] or 0, 2) + ' ★'),
+
+    ]
+
+
+
+    # Anchura de la barra de cada fila de las tablas, relativa al máximo.
+
+    max_votos = max((l['votos'] for l in mas_leidos), default=1)
+
+    for libro in mas_leidos:
+
+        libro['pct'] = round(libro['votos'] * 100 / max_votos)
+
+    for libro in mas_leidos + mejor_valorados:
+
+        libro['votos_txt'] = formato_numero(libro['votos'])
+
+        libro['nota_txt'] = formato_numero(libro['nota_media'], 2)
+
+    for libro in mejor_valorados:
+
+        libro['pct'] = round(float(libro['nota_media']) * 100 / 5)
+
+
+
+    if apriori:
+
+        apriori['duracion'] = formato_numero((apriori['finished_at'] - apriori['started_at']).total_seconds())
+
+        apriori['tarjetas'] = [
+
+            ('Recomendaciones calculadas', formato_numero(apriori['rules_count'] or 0)),
+
+            ('Libros con recomendaciones', f"{formato_numero(apriori['books_with_rules_count'] or 0)} "
+
+                                           f"({formato_numero((apriori['books_with_rules_count'] or 0) * 100 / apriori['total_libros'], 1)} %)"),
+
+            ('Lectores que pueden recibir recomendaciones', f"{formato_numero(apriori['covered_users_count'] or 0)} "
+
+                                                            f"({formato_numero((apriori['covered_users_count'] or 0) * 100 / apriori['transactions_count'], 1)} %)"),
+
+        ]
+
+        apriori['transacciones_txt'] = formato_numero(apriori['transactions_count'] or 0)
+
+        apriori['soporte_txt'] = formato_numero(apriori['min_support'] * 100, 1) + ' %'
+
+        apriori['confianza_txt'] = formato_numero(apriori['min_confidence'] * 100) + ' %'
+
+        apriori['lift_txt'] = formato_numero(apriori['min_lift'], 1)
+
+        for regla in reglas:
+
+            regla['soporte_txt'] = formato_numero(regla['support'] * 100, 1) + ' %'
+
+            regla['confianza_txt'] = formato_numero(regla['confidence'] * 100) + ' %'
+
+            regla['lift_txt'] = formato_numero(regla['lift'], 1)
+
+
+
+    # Datos de los gráficos (Chart.js), como números para JSON.
+
+    datos_graficos = {
+
+        'generos': {
+
+            'etiquetas': [g['genero'] for g in generos],
+
+            'positivas': [g['valoraciones_positivas'] for g in generos],
+
+            'nota': [float(g['nota_media'] or 0) for g in generos],
+
+            'libros': [g['libros'] for g in generos],
+
+        },
+
+        'distribucion': {
+
+            'etiquetas': [f"{d['rating']} ★" for d in distribucion],
+
+            'valores': [d['total'] for d in distribucion],
+
+        },
+
+    }
+
+    for g in generos:
+
+        g['positivas_txt'] = formato_numero(g['valoraciones_positivas'])
+
+        g['libros_txt'] = formato_numero(g['libros'])
+
+        g['nota_txt'] = formato_numero(g['nota_media'] or 0, 2)
+
+    for d in distribucion:
+
+        d['total_txt'] = formato_numero(d['total'])
+
+
+
+    return render(request, 'dashboard.html', {
+
+        'tarjetas': tarjetas,
+
+        'generos': generos,
+
+        'distribucion': distribucion,
+
+        'mas_leidos': mas_leidos,
+
+        'mejor_valorados': mejor_valorados,
+
+        'apriori': apriori,
+
+        'reglas': reglas,
+
+        'datos_graficos': datos_graficos,
+
+        'user_active': request.session.get('user_id'),
+
+    })

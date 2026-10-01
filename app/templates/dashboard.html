@@ -1,0 +1,390 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Casa de la Cultura - Estadísticas</title>
+    <style>
+        :root {
+            --bg-color: #fcfbf9;
+            --text-main: #2c2825;
+            --text-muted: #6e6459;
+            --accent: #8b1e28;
+            --accent-hover: #61151c;
+            --card-bg: #ffffff;
+            --border: #e6e2d8;
+            --shadow: rgba(0,0,0,0.05);
+            --genre-bg: #f0ebe4;
+            /* Color de las barras: burdeos de la app aclarado para cumplir la
+               franja de luminosidad de las marcas sobre fondo claro. */
+            --chart-bar: #a8323d;
+            --chart-grid: #ece8df;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1817;
+            --text-main: #e8e6e3;
+            --text-muted: #a09a93;
+            --accent: #c43946;
+            --accent-hover: #e04a58;
+            --card-bg: #252220;
+            --border: #3d3733;
+            --shadow: rgba(0,0,0,0.3);
+            --genre-bg: #3d3733;
+            --chart-bar: #c43946;
+            --chart-grid: #332f2c;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .user-info { font-size: 0.95rem; color: var(--text-muted); }
+        .user-info strong { color: var(--accent); }
+        .nav-buttons { display: flex; gap: 15px; align-items: center; }
+        .btn-link {
+            text-decoration: none;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            font-weight: bold;
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            background: transparent;
+            transition: all 0.2s ease;
+        }
+        .btn-link:hover { background: var(--border); }
+
+        h1 { font-family: 'Georgia', serif; color: var(--accent); margin: 10px 0 4px; }
+        .subtitulo { color: var(--text-muted); margin: 0 0 25px; }
+        h2 { font-family: 'Georgia', serif; color: var(--accent); font-size: 1.3rem; margin: 35px 0 12px; }
+        h3 { font-size: 1rem; margin: 0 0 4px; }
+        .nota-grafico { color: var(--text-muted); font-size: 0.85rem; margin: 0 0 12px; }
+
+        .tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 15px; }
+        .tarjeta {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px 18px;
+            box-shadow: 0 2px 6px var(--shadow);
+        }
+        .tarjeta .etiqueta { color: var(--text-muted); font-size: 0.85rem; }
+        .tarjeta .valor { font-size: 1.7rem; font-weight: bold; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+        .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; }
+        .panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 18px 20px;
+            box-shadow: 0 2px 6px var(--shadow);
+            min-width: 0;
+        }
+        .contenedor-grafico { position: relative; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { text-align: left; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); padding: 6px 8px; }
+        td { border-bottom: 1px solid var(--border); padding: 7px 8px; vertical-align: middle; }
+        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .barra-fila { height: 6px; background: var(--chart-grid); border-radius: 3px; margin-top: 5px; }
+        .barra-fila span { display: block; height: 100%; background: var(--chart-bar); border-radius: 3px; }
+
+        details { margin-top: 12px; font-size: 0.85rem; }
+        summary { cursor: pointer; color: var(--text-muted); }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 15px; }
+        .chip { background: var(--genre-bg); border-radius: 12px; padding: 4px 12px; font-size: 0.85rem; }
+        .regla-flecha { color: var(--accent); font-weight: bold; padding: 0 4px; }
+        .aviso { background: var(--genre-bg); border-left: 3px solid var(--accent); padding: 12px 15px; border-radius: 4px; }
+
+        @media (max-width: 600px) {
+            .rejilla { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="user-info">
+            {% if user_active %}
+                Bienvenido, lector <strong>{{ user_active }}</strong>
+            {% else %}
+                Modo Invitado
+            {% endif %}
+        </div>
+        <div class="nav-buttons">
+            <a href="{% url 'buscador' %}" class="btn-link">← Volver al catálogo</a>
+            <button id="themeToggle" class="btn-link">Modo Oscuro</button>
+        </div>
+    </div>
+
+    <h1>Estadísticas de la Casa de la Cultura</h1>
+    <p class="subtitulo">Qué leen los vecinos, qué les gusta y qué libros se recomiendan.</p>
+
+    <div class="tarjetas">
+        {% for etiqueta, valor in tarjetas %}
+            <div class="tarjeta">
+                <div class="etiqueta">{{ etiqueta }}</div>
+                <div class="valor">{{ valor }}</div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <h2>Gustos de los lectores</h2>
+    <div class="rejilla">
+        <div class="panel">
+            <h3>Géneros que más gustan</h3>
+            <p class="nota-grafico">Valoraciones de 4 y 5 estrellas por género (un libro puede tener hasta 3 géneros).</p>
+            <div class="contenedor-grafico" style="height: {{ generos|length|add:2 }}0px; min-height: 300px;">
+                <canvas id="graficoGeneros" role="img" aria-label="Valoraciones positivas por género"></canvas>
+            </div>
+            <details>
+                <summary>Ver datos</summary>
+                <table>
+                    <tr><th>Género</th><th class="num">Libros</th><th class="num">Valoraciones 4-5 ★</th><th class="num">Nota media</th></tr>
+                    {% for g in generos %}
+                        <tr><td>{{ g.genero }}</td><td class="num">{{ g.libros_txt }}</td><td class="num">{{ g.positivas_txt }}</td><td class="num">{{ g.nota_txt }}</td></tr>
+                    {% endfor %}
+                </table>
+            </details>
+        </div>
+
+        <div class="panel">
+            <h3>Distribución de las valoraciones</h3>
+            <p class="nota-grafico">Número de valoraciones de cada puntuación.</p>
+            <div class="contenedor-grafico" style="height: 300px;">
+                <canvas id="graficoDistribucion" role="img" aria-label="Número de valoraciones de 1 a 5 estrellas"></canvas>
+            </div>
+            <details>
+                <summary>Ver datos</summary>
+                <table>
+                    <tr><th>Puntuación</th><th class="num">Valoraciones</th></tr>
+                    {% for d in distribucion %}
+                        <tr><td>{{ d.rating }} ★</td><td class="num">{{ d.total_txt }}</td></tr>
+                    {% endfor %}
+                </table>
+            </details>
+        </div>
+    </div>
+
+    <h2>Uso del catálogo</h2>
+    <div class="rejilla">
+        <div class="panel">
+            <h3>Libros más leídos</h3>
+            <p class="nota-grafico">Por número de valoraciones.</p>
+            <table>
+                <tr><th>#</th><th>Libro</th><th class="num">Valoraciones</th><th class="num">Nota</th></tr>
+                {% for libro in mas_leidos %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ libro.title }}<div class="barra-fila"><span style="width: {{ libro.pct }}%;"></span></div></td>
+                        <td class="num">{{ libro.votos_txt }}</td>
+                        <td class="num">{{ libro.nota_txt }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="panel">
+            <h3>Libros mejor valorados</h3>
+            <p class="nota-grafico">Nota media entre los libros con al menos 1.000 valoraciones.</p>
+            <table>
+                <tr><th>#</th><th>Libro</th><th class="num">Nota</th><th class="num">Valoraciones</th></tr>
+                {% for libro in mejor_valorados %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ libro.title }}<div class="barra-fila"><span style="width: {{ libro.pct }}%;"></span></div></td>
+                        <td class="num">{{ libro.nota_txt }}</td>
+                        <td class="num">{{ libro.votos_txt }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+
+    <h2>Recomendaciones</h2>
+    {% if apriori %}
+        <p class="nota-grafico">Se calculan a partir de los libros que los lectores valoraron con {{ apriori.min_rating }} estrellas o más. Última actualización: {{ apriori.finished_at|date:"d/m/Y H:i" }}.</p>
+        <div class="tarjetas">
+            {% for etiqueta, valor in apriori.tarjetas %}
+                <div class="tarjeta">
+                    <div class="etiqueta">{{ etiqueta }}</div>
+                    <div class="valor">{{ valor }}</div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="panel" style="margin-top: 20px;">
+            <h3>Libros que se leen juntos</h3>
+            <p class="nota-grafico">Las combinaciones más características del catálogo. La coincidencia indica cuántos de los lectores a los que les gustó el primer libro disfrutaron también los recomendados.</p>
+            <table>
+                <tr><th>Si te gusta…</th><th>…también te gustan</th><th class="num">Coincidencia</th></tr>
+                {% for regla in reglas %}
+                    <tr>
+                        <td>{{ regla.antecedente }}</td>
+                        <td><span class="regla-flecha">⇒</span>{{ regla.consecuente }}</td>
+                        <td class="num">{{ regla.confianza_txt }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <details class="panel" style="margin-top: 20px;">
+            <summary>Detalles técnicos</summary>
+            <p class="nota-grafico" style="margin-top: 12px;">Recomendaciones generadas con el algoritmo Apriori (reglas de asociación) y guardadas en la base de datos.</p>
+            <div class="chips">
+                <span class="chip">Ejecución #{{ apriori.id }}</span>
+                <span class="chip">Valoración mínima {{ apriori.min_rating }}</span>
+                <span class="chip">Soporte mínimo {{ apriori.soporte_txt }}</span>
+                <span class="chip">Confianza mínima {{ apriori.confianza_txt }}</span>
+                <span class="chip">Lift ≥ {{ apriori.lift_txt }}</span>
+                <span class="chip">max_len {{ apriori.max_len }}</span>
+                <span class="chip">{{ apriori.transacciones_txt }} transacciones</span>
+                <span class="chip">Calculadas en {{ apriori.duracion }} s</span>
+            </div>
+            <table>
+                <tr><th>Antecedente</th><th>Consecuente</th><th class="num">Soporte</th><th class="num">Confianza</th><th class="num">Lift</th></tr>
+                {% for regla in reglas %}
+                    <tr>
+                        <td>{{ regla.antecedente }}</td>
+                        <td>{{ regla.consecuente }}</td>
+                        <td class="num">{{ regla.soporte_txt }}</td>
+                        <td class="num">{{ regla.confianza_txt }}</td>
+                        <td class="num">{{ regla.lift_txt }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </details>
+    {% else %}
+        <p class="aviso">Todavía no hay recomendaciones calculadas. El equipo técnico debe ejecutar <code>python manage.py generar_reglas</code>.</p>
+    {% endif %}
+
+    {{ datos_graficos|json_script:"datos-graficos" }}
+    <script src="{% static 'app/js/chart.umd.min.js' %}"></script>
+    <script>
+        const datos = JSON.parse(document.getElementById('datos-graficos').textContent);
+        const html = document.documentElement;
+        const botonTema = document.getElementById('themeToggle');
+        const formato = new Intl.NumberFormat('es-ES');
+        // Ejes con números cortos (200 mil, 1 M) para que no se amontonen.
+        const formatoCorto = new Intl.NumberFormat('es-ES', { notation: 'compact' });
+        let graficos = [];
+
+        function color(variable) {
+            return getComputedStyle(html).getPropertyValue(variable).trim();
+        }
+
+        function opcionesBase(horizontal) {
+            const ejeValor = {
+                beginAtZero: true,
+                grid: { color: color('--chart-grid') },
+                border: { display: false },
+                ticks: {
+                    color: color('--text-muted'),
+                    callback: v => formatoCorto.format(v),
+                    maxTicksLimit: 6,
+                    maxRotation: 0,
+                },
+            };
+            const ejeCategoria = {
+                grid: { display: false },
+                border: { color: color('--border') },
+                // Todas las etiquetas (géneros, estrellas), sin saltarse ninguna.
+                ticks: { color: color('--text-main'), autoSkip: false },
+            };
+            return {
+                indexAxis: horizontal ? 'y' : 'x',
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: color('--card-bg'),
+                        titleColor: color('--text-main'),
+                        bodyColor: color('--text-main'),
+                        borderColor: color('--border'),
+                        borderWidth: 1,
+                    },
+                },
+                scales: horizontal
+                    ? { x: ejeValor, y: ejeCategoria }
+                    : { x: ejeCategoria, y: ejeValor },
+            };
+        }
+
+        function barras(valores) {
+            return {
+                data: valores,
+                backgroundColor: color('--chart-bar'),
+                borderRadius: 4,
+                borderSkipped: 'start',
+                barPercentage: 0.8,
+                categoryPercentage: 0.9,
+                maxBarThickness: 28,
+            };
+        }
+
+        function dibujar() {
+            graficos.forEach(g => g.destroy());
+
+            const opcionesGeneros = opcionesBase(true);
+            opcionesGeneros.plugins.tooltip.callbacks = {
+                label: ctx => `${formato.format(ctx.raw)} valoraciones de 4-5 ★`,
+                afterLabel: ctx => `Nota media ${datos.generos.nota[ctx.dataIndex].toLocaleString('es-ES')} · ${formato.format(datos.generos.libros[ctx.dataIndex])} libros`,
+            };
+
+            const opcionesDistribucion = opcionesBase(false);
+            opcionesDistribucion.plugins.tooltip.callbacks = {
+                label: ctx => `${formato.format(ctx.raw)} valoraciones`,
+            };
+
+            graficos = [
+                new Chart(document.getElementById('graficoGeneros'), {
+                    type: 'bar',
+                    data: { labels: datos.generos.etiquetas, datasets: [barras(datos.generos.positivas)] },
+                    options: opcionesGeneros,
+                }),
+                new Chart(document.getElementById('graficoDistribucion'), {
+                    type: 'bar',
+                    data: { labels: datos.distribucion.etiquetas, datasets: [barras(datos.distribucion.valores)] },
+                    options: opcionesDistribucion,
+                }),
+            ];
+        }
+
+        function aplicarTema(tema) {
+            html.setAttribute('data-theme', tema);
+            botonTema.textContent = tema === 'dark' ? 'Modo Claro' : 'Modo Oscuro';
+            dibujar();
+        }
+
+        // Mismo tema que el catálogo (se guarda en el navegador).
+        aplicarTema(localStorage.getItem('theme') || 'light');
+
+        botonTema.addEventListener('click', () => {
+            const nuevo = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', nuevo);
+            aplicarTema(nuevo);
+        });
+    </script>
+</body>
+</html>

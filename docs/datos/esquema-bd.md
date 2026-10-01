@@ -297,7 +297,7 @@ erDiagram
     BOOK ||--o{ ASSOCIATION_RULE : "source"
     ASSOCIATION_RULE ||--o{ ASSOCIATION_RULE_TARGET : "targets"
     BOOK ||--o{ ASSOCIATION_RULE_TARGET : "target"
-    ```
+```
 
 ---
 
@@ -357,16 +357,13 @@ de `AssociationRuleTarget` debe ser única.
 
 ## Índices
 
-Django y PostgreSQL crean automáticamente índices sobre claves primarias, claves foráneas y campos con restricciones de unicidad.
+PostgreSQL crea automáticamente índices sobre las claves primarias y los campos con restricciones de unicidad, y Django crea uno sobre cada clave foránea.
 
 Además, se han definido índices específicos para consultas frecuentes.
 
 ### Rating
 
-- índice sobre `user`.
-- índice sobre `copy`.
-
-Estos índices permiten acelerar las consultas utilizadas para construir el histórico de valoraciones y las transacciones del recomendador.
+`user` y `copy` ya están indexados por ser claves foráneas, y el par `(user, copy)` por su restricción de unicidad. El modelo declaraba además dos índices sobre `user` y `copy` que duplicaban los anteriores; se eliminaron en la migración `0005` porque ocupaban espacio en una tabla de ~6 millones de filas y ralentizaban las inserciones sin aportar nada.
 
 ### AssociationRule
 
@@ -377,6 +374,55 @@ Se han creado índices sobre:
 - `(source_book, confidence)`
 
 El índice compuesto sobre `source_book` y `confidence` permite obtener eficientemente las reglas asociadas a un libro y ordenarlas o filtrarlas por confianza.
+
+### Vistas materializadas del dashboard
+
+Las consultas del dashboard resumen los ~6 millones de valoraciones (votos y nota media por libro, por género y por puntuación). Recorren la tabla entera, así que un índice normal no las acelera: se probó un índice cubriente `(copy_id) INCLUDE (rating)` y la consulta de libros más valorados pasó de 914 a 875 ms, una mejora irrelevante.
+
+La solución es precalcularlas en vistas materializadas (migración `0006`) e indexar las vistas:
+
+| Vista | Contenido | Índices |
+|---|---|---|
+| `estadisticas_libro` | votos y nota media por libro | único `(book_id)`, `(votos DESC)`, `(nota_media DESC, votos DESC)` |
+| `estadisticas_genero` | libros, valoraciones, valoraciones positivas y nota media por género | único `(genre_id)` |
+| `distribucion_valoraciones` | nº de valoraciones de 1 a 5 estrellas | único `(rating)` |
+
+Se refrescan con `python manage.py refrescar_estadisticas` (~1,2 s), que se ejecuta automáticamente al final de la carga y al registrar una valoración. El índice único de cada vista permite refrescarla con `REFRESH MATERIALIZED VIEW CONCURRENTLY`, sin bloquear las lecturas.
+
+La cobertura del recomendador (libros con reglas y lectores cubiertos) se calcula una vez al generar las reglas y se guarda en `AprioriRun`, en vez de calcularla en cada visita (3,7 s).
+
+Tiempo de cada consulta del dashboard (`EXPLAIN ANALYZE`):
+
+| Consulta | Sobre las tablas | Con vistas / precálculo |
+|---|---|---|
+| Libros más valorados | 914 ms | 0,02 ms |
+| Libros mejor valorados | 918 ms | 1,5 ms |
+| Gustos por género | 576 ms | 0,4 ms |
+| Distribución de valoraciones | 235 ms | 0,3 ms |
+| Cobertura de Apriori | 3.695 ms | 2 ms |
+| Reglas más fuertes | 28 ms | 5,6 ms (la mejor regla de cada libro) |
+
+Comparación reproducible en `psql` o pgAdmin:
+
+```sql
+-- Directamente sobre las ~6 millones de valoraciones
+EXPLAIN ANALYZE
+SELECT b.title, count(*) AS votos, avg(r.rating) AS nota
+FROM app_rating r
+JOIN app_copy c ON c.id = r.copy_id
+JOIN app_book b ON b.id = c.book_id
+GROUP BY b.id, b.title
+ORDER BY votos DESC
+LIMIT 10;
+
+-- Sobre la vista materializada indexada
+EXPLAIN ANALYZE
+SELECT b.title, e.votos, e.nota_media
+FROM estadisticas_libro e
+JOIN app_book b ON b.id = e.book_id
+ORDER BY e.votos DESC
+LIMIT 10;
+```
 
 ---
 

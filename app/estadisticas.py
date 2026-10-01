@@ -124,15 +124,26 @@ def ejecucion_apriori_activa():
 
 
 def reglas_mas_fuertes(limite=10):
-    """Reglas de la ejecución activa con mayor lift, con sus libros recomendados."""
+    """
+    Reglas de la ejecución activa con mayor lift, con sus libros recomendados.
+
+    Se toma la mejor regla de cada libro antecedente (DISTINCT ON) para que
+    una sola saga no ocupe todo el ranking.
+    """
     return _filas(
         """
-        WITH top AS (
-            -- Primero las n reglas con mayor lift (usa el índice sobre lift)...
-            SELECT ar.id, ar.source_book_id, ar.support, ar.confidence, ar.lift
+        WITH mejor_por_libro AS (
+            -- La regla con mayor lift de cada libro antecedente...
+            SELECT DISTINCT ON (ar.source_book_id)
+                ar.id, ar.source_book_id, ar.support, ar.confidence, ar.lift
             FROM app_associationrule ar
             JOIN app_apriorirun run ON run.id = ar.run_id AND run.is_active
-            ORDER BY ar.lift DESC
+            ORDER BY ar.source_book_id, ar.lift DESC
+        ),
+        top AS (
+            -- ...y de ellas, las n con mayor lift.
+            SELECT * FROM mejor_por_libro
+            ORDER BY lift DESC
             LIMIT %s
         )
         -- ...y después sus libros, en vez de agrupar todas las reglas.
