@@ -89,9 +89,12 @@ Los principales artefactos procesados se conservan en Git para evitar tener que 
 |---|---|
 | `books_with_genre.csv` | Catálogo procesado con información bibliográfica y género |
 | `book_authors_extended.csv` | Relación libro-autor |
-| `copies_clean.csv` | Ejemplares procesados |
+| `copies_clean_extended.csv` | Ejemplares procesados (versión extendida: los 55.327 ejemplares) |
+| `copies_clean.csv` | Ejemplares de la versión estricta (no se usa en la carga) |
 | `users_clean.csv` | Usuarios procesados |
-| `book_genres.csv` | Relación libro-género |
+| `book_genres.csv` | Relación libro-género (1 a 3 géneros por libro) |
+
+> **Filas reparadas a mano.** `books.csv` contiene dos filas mal formadas por comillas mal escapadas (líneas 6623 y 9273: *Bloody Jack*, `book_id` 6582, y *My Story* de Dave Pelzer, `book_id` 9265), que el ETL descartaba. Se han añadido a `books_with_genre.csv` y `book_authors_extended.csv` con los campos recolocados y las mismas normalizaciones que el ETL (idioma `eng`, ISBN de 9 dígitos con cero a la izquierda). Sus 12 ejemplares se han añadido a `copies_clean_extended.csv`. Sus géneros se han asignado con las reglas del prompt de `etl_genres.py` y en coherencia con los libros de su saga ya clasificados: 6582 → Aventura, Ficción histórica, Juvenil; 9265 → Memorias, Biografía.
 | `isbn_recuperados.csv` | ISBNs recuperados mediante Open Library |
 | `sinopsis.csv` | Sinopsis disponibles offline |
 
@@ -126,11 +129,14 @@ El script utiliza Django ORM y `bulk_create` para poblar las principales entidad
 - `Book`
 - `Author`
 - relaciones libro-autor
+- `Genre` y relaciones libro-género
 - `Copy`
 - `LibraryUser`
 - `Rating`
 
-La carga completa puede tardar varios minutos debido al volumen de valoraciones.
+Resultado de la carga completa: 10.000 libros, 55.327 ejemplares, 53.425 usuarios, 30 géneros (16.005 relaciones libro-género) y 5.976.479 valoraciones, sin ninguna valoración descartada. Al terminar, el script muestra los ratings omitidos agrupados por motivo (usuario inexistente, ejemplar inexistente, valoración fuera de 1-5 o fila no válida).
+
+La carga completa tarda unos 3 minutos debido al volumen de valoraciones.
 
 La conexión a PostgreSQL se configura mediante un archivo `.env` basado en `.env.example`.
 

@@ -8,7 +8,7 @@ from django.db import connection
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "casa_cultura.settings")
 django.setup()
 
-from app.models import Book, Author, Copy, LibraryUser, Rating
+from app.models import Book, Author, Genre, Copy, LibraryUser, Rating
 
 
 # Tamaño de los lotes para inserciones masivas.
@@ -66,11 +66,13 @@ print("Limpiando datos anteriores...")
 Rating.objects.all().delete()
 Copy.objects.all().delete()
 
-# Elimina las relaciones ManyToMany libro-autor.
+# Elimina las relaciones ManyToMany libro-autor y libro-género.
 Book.authors.through.objects.all().delete()
+Book.genres.through.objects.all().delete()
 
 Book.objects.all().delete()
 Author.objects.all().delete()
+Genre.objects.all().delete()
 LibraryUser.objects.all().delete()
 
 print("Datos anteriores eliminados.")
@@ -232,6 +234,78 @@ print(
 
 
 # ==========================================================
+# GÉNEROS
+# ==========================================================
+
+print("Cargando géneros...")
+
+# book_genres.csv contiene de 1 a 3 géneros por libro,
+# una fila por cada pareja libro-género.
+genre_names = set()
+book_genre_rows = []
+
+with open("data/book_genres.csv", newline="", encoding="utf-8-sig") as f:
+    reader = csv.DictReader(f)
+
+    for row in reader:
+        try:
+            book_id = int(row["book_id"])
+            genre_name = row["genre"].strip()
+
+            if not genre_name:
+                continue
+
+            genre_names.add(genre_name)
+            book_genre_rows.append((book_id, genre_name))
+
+        except Exception:
+            continue
+
+
+Genre.objects.bulk_create(
+    [Genre(name=name) for name in sorted(genre_names)],
+    batch_size=BATCH_SIZE,
+    ignore_conflicts=True,
+)
+
+genres_by_name = {
+    genre.name: genre.id
+    for genre in Genre.objects.only("id", "name")
+}
+
+
+# Creamos las relaciones ManyToMany libro-género
+genre_through_model = Book.genres.through
+genre_relations = []
+
+for book_id, genre_name in book_genre_rows:
+
+    django_book_id = books_by_book_id.get(book_id)
+    genre_id = genres_by_name.get(genre_name)
+
+    if django_book_id and genre_id:
+        genre_relations.append(
+            genre_through_model(
+                book_id=django_book_id,
+                genre_id=genre_id,
+            )
+        )
+
+
+genre_through_model.objects.bulk_create(
+    genre_relations,
+    batch_size=BATCH_SIZE,
+    ignore_conflicts=True,
+)
+
+print(f"Géneros cargados: {Genre.objects.count()}")
+print(
+    "Relaciones libro-género cargadas: "
+    f"{genre_through_model.objects.count()}"
+)
+
+
+# ==========================================================
 # COPIAS
 # ==========================================================
 
@@ -239,7 +313,9 @@ print("Cargando copias...")
 
 copies = []
 
-with open("data/copies_clean.csv", newline="", encoding="utf-8") as f:
+# Versión extendida: incluye los ejemplares de los libros sin ISBN,
+# que se conservan en el catálogo.
+with open("data/copies_clean_extended.csv", newline="", encoding="utf-8") as f:
     reader = csv.DictReader(f)
 
     for row in reader:
@@ -301,6 +377,14 @@ ratings = []
 creados = 0
 omitidos = 0
 
+# Motivo de cada rating omitido, para poder justificar los descartes.
+omitidos_por_motivo = {
+    "usuario inexistente": 0,
+    "ejemplar inexistente": 0,
+    "valoración fuera de 1-5": 0,
+    "fila no válida": 0,
+}
+
 
 with open("data/ratings.csv", newline="", encoding="utf-8") as f:
 
@@ -327,8 +411,19 @@ with open("data/ratings.csv", newline="", encoding="utf-8") as f:
                 external_copy_id
             )
 
-            if not django_user_id or not django_copy_id:
+            if not django_user_id:
                 omitidos += 1
+                omitidos_por_motivo["usuario inexistente"] += 1
+                continue
+
+            if not django_copy_id:
+                omitidos += 1
+                omitidos_por_motivo["ejemplar inexistente"] += 1
+                continue
+
+            if not 1 <= rating_value <= 5:
+                omitidos += 1
+                omitidos_por_motivo["valoración fuera de 1-5"] += 1
                 continue
 
             ratings.append(
@@ -361,6 +456,7 @@ with open("data/ratings.csv", newline="", encoding="utf-8") as f:
 
         except Exception:
             omitidos += 1
+            omitidos_por_motivo["fila no válida"] += 1
 
 
 # Inserta el último lote si no alcanza BATCH_SIZE
@@ -385,9 +481,13 @@ print("--------------------------------------")
 print(f"Usuarios: {LibraryUser.objects.count()}")
 print(f"Libros: {Book.objects.count()}")
 print(f"Autores: {Author.objects.count()}")
+print(f"Géneros: {Genre.objects.count()}")
 print(f"Copias: {Copy.objects.count()}")
 print(f"Ratings procesados aprox.: {creados}")
 print(f"Ratings omitidos: {omitidos}")
+for motivo, total in omitidos_por_motivo.items():
+    if total:
+        print(f"  - {motivo}: {total}")
 print(f"Ratings almacenados: {Rating.objects.count()}")
 print("--------------------------------------")
 print("Datos cargados correctamente en PostgreSQL.")
