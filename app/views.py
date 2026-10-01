@@ -282,23 +282,50 @@ def obtener_votos_totales():
 
 
 
-    ruta_precalc = 'data/votos_precalculados.csv'
+    # Votos y nota media calculados desde PostgreSQL (antes se leían de
+    # data/votos_precalculados.csv, que no reflejaba las valoraciones nuevas).
 
-    if os.path.exists(ruta_precalc):
+    try:
 
-        try:
+        qs = (
 
-            df_votos = pd.read_csv(ruta_precalc, encoding='utf-8-sig')
+            Rating.objects
 
-            df_votos['book_id'] = pd.to_numeric(df_votos['book_id'], errors='coerce').fillna(0).astype(int)
+            .values('copy__book__book_id')
+
+            .annotate(votos=Count('id'), nota_media=Avg('rating'))
+
+        )
+
+        df_votos = pd.DataFrame(list(qs)).rename(columns={'copy__book__book_id': 'book_id'})
+
+        if not df_votos.empty:
+
+            df_votos['book_id'] = df_votos['book_id'].astype(int)
+
+            df_votos['nota_media'] = df_votos['nota_media'].astype(float).round(1)
 
             VOTOS_CACHE = df_votos
 
             return VOTOS_CACHE.copy()
 
-        except: pass
+    except: pass
 
     return pd.DataFrame()
+
+
+
+def invalidar_cache_votos():
+
+    """Fuerza a recalcular votos y rankings tras una nueva valoración."""
+
+    global VOTOS_CACHE, TOP_VALORADOS_CACHE, TOP_POPULARES_CACHE
+
+    VOTOS_CACHE = pd.DataFrame()
+
+    TOP_VALORADOS_CACHE = None
+
+    TOP_POPULARES_CACHE = None
 
 
 
@@ -1179,6 +1206,8 @@ def valorar_libro(request, book_id):
             defaults={'rating': rating_val}
 
         )
+
+        invalidar_cache_votos()
 
     except: pass
 
