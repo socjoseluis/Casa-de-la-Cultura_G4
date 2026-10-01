@@ -324,17 +324,25 @@ python load_data_postgres.py
 
 ### 5. Generar reglas Apriori
 
-El script definitivo deberá:
+```cmd
+python manage.py generar_reglas
+```
 
-1. leer las valoraciones desde PostgreSQL;
-2. construir las transacciones por usuario;
-3. aplicar `min_rating`;
-4. ejecutar Apriori;
-5. filtrar por `min_support`, `min_confidence` y `min_lift`;
-6. registrar la ejecución en `AprioriRun`;
-7. guardar reglas en `AssociationRule`;
-8. guardar consecuentes en `AssociationRuleTarget`;
-9. marcar como activa la nueva ejecución.
+Parámetros por defecto (se pueden cambiar con `--min-rating`, `--soporte`, `--confianza`, `--lift` y `--max-len`): valoración ≥ 4, soporte 1 %, confianza 30 %, lift ≥ 1 y `max_len` 3.
+
+El comando:
+
+1. lee las valoraciones desde PostgreSQL;
+2. construye las transacciones por usuario (libros valorados con `min_rating` o más);
+3. ejecuta Apriori con `mlxtend` y `low_memory=True`;
+4. genera las reglas con un único libro en el antecedente y las filtra por confianza y lift;
+5. registra la ejecución en `AprioriRun`;
+6. guarda las reglas en `AssociationRule` y los libros del consecuente en `AssociationRuleTarget`;
+7. marca la nueva ejecución como activa (las anteriores quedan como historial).
+
+Resultado con los parámetros por defecto: 53.406 transacciones, 1.597 libros frecuentes y 15.915 reglas (8.117 con dos libros en el consecuente), en unos 80 segundos y ~1 GB de RAM.
+
+Si se recargan los datos con `load_data_postgres.py`, las reglas se borran (dependen de los libros) y hay que volver a ejecutar este comando.
 
 ### 6. Arrancar la aplicación
 
