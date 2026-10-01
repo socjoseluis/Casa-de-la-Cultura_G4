@@ -1,0 +1,15 @@
+digraph "catalogo" {
+  graph [rankdir=LR, bgcolor="white", nodesep=0.6, ranksep=0.9, pad=0.3,
+         fontname="Helvetica", fontsize=16, fontcolor="#2c2825"];
+  node [shape=plain, fontname="Helvetica", fontsize=12, fontcolor="#2c2825"];
+  edge [arrowhead=none, color="#6e6459", penwidth=1.3, fontname="Helvetica", fontsize=11,
+        fontcolor="#2c2825", labelfontsize=12, labelfontcolor="#2c2825", labeldistance=1.6];
+  label="Catálogo"; labelloc=t;
+  "Book" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#e7eef8"><B>Book</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>book_id<FONT COLOR="#6e6459">: integer (único)</FONT><BR/>title<FONT COLOR="#6e6459">: varchar</FONT><BR/>original_title<FONT COLOR="#6e6459">: varchar ?</FONT><BR/>isbn<FONT COLOR="#6e6459">: varchar ?</FONT><BR/>publication_year<FONT COLOR="#6e6459">: integer ?</FONT><BR/>language_code<FONT COLOR="#6e6459">: varchar ?</FONT><BR/>image_url<FONT COLOR="#6e6459">: varchar ?</FONT></TD></TR></TABLE>>];
+  "Author" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#e7eef8"><B>Author</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>name<FONT COLOR="#6e6459">: varchar</FONT></TD></TR></TABLE>>];
+  "Genre" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#e7eef8"><B>Genre</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>name<FONT COLOR="#6e6459">: varchar (único)</FONT></TD></TR></TABLE>>];
+  "Copy" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#e7eef8"><B>Copy</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>copy_id<FONT COLOR="#6e6459">: integer (único)</FONT><BR/>available<FONT COLOR="#6e6459">: boolean</FONT></TD></TR></TABLE>>];
+  "Book" -> "Author" [taillabel="*", headlabel="1..*", label="escrito por"];
+  "Book" -> "Genre" [taillabel="*", headlabel="1..3", label="clasificado en"];
+  "Book" -> "Copy" [taillabel="1", headlabel="1..*", label="tiene"];
+}

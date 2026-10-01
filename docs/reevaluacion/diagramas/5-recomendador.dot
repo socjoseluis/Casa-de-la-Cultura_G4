@@ -1,0 +1,16 @@
+digraph "recomendador" {
+  graph [rankdir=LR, bgcolor="white", nodesep=0.6, ranksep=1.4, pad=0.3,
+         fontname="Helvetica", fontsize=16, fontcolor="#2c2825"];
+  node [shape=plain, fontname="Helvetica", fontsize=12, fontcolor="#2c2825"];
+  edge [arrowhead=none, color="#6e6459", penwidth=1.3, fontname="Helvetica", fontsize=11,
+        fontcolor="#2c2825", labelfontsize=12, labelfontcolor="#2c2825", labeldistance=1.6];
+  label="Recomendador (Apriori)"; labelloc=t;
+  "AprioriRun" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#f7e7e9"><B>AprioriRun</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>started_at<FONT COLOR="#6e6459">: timestamptz</FONT><BR/>finished_at<FONT COLOR="#6e6459">: timestamptz ?</FONT><BR/>min_rating<FONT COLOR="#6e6459">: integer</FONT><BR/>min_support<FONT COLOR="#6e6459">: float</FONT><BR/>min_confidence<FONT COLOR="#6e6459">: float</FONT><BR/>min_lift<FONT COLOR="#6e6459">: float</FONT><BR/>max_len<FONT COLOR="#6e6459">: integer</FONT><BR/>is_active<FONT COLOR="#6e6459">: boolean</FONT><BR/>transactions_count<FONT COLOR="#6e6459">: integer ?</FONT><BR/>rules_count<FONT COLOR="#6e6459">: integer ?</FONT><BR/>books_with_rules_count<FONT COLOR="#6e6459">: integer ?</FONT><BR/>covered_users_count<FONT COLOR="#6e6459">: integer ?</FONT></TD></TR></TABLE>>];
+  "AssociationRule" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#f7e7e9"><B>AssociationRule</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>support<FONT COLOR="#6e6459">: float</FONT><BR/>confidence<FONT COLOR="#6e6459">: float</FONT><BR/>lift<FONT COLOR="#6e6459">: float</FONT><BR/>created_at<FONT COLOR="#6e6459">: timestamptz</FONT></TD></TR></TABLE>>];
+  "Book" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#e7eef8"><B>Book</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>book_id<FONT COLOR="#6e6459">: integer (único)</FONT><BR/>title<FONT COLOR="#6e6459">: varchar</FONT></TD></TR></TABLE>>];
+  "AprioriRun" -> "AssociationRule" [taillabel="1", headlabel="*", label="genera"];
+  "AssociationRule" -> "Book" [taillabel="*", headlabel="1", label="antecedente
+(si te gusta)"];
+  "AssociationRule" -> "Book" [taillabel="*", headlabel="1..2", label="consecuente
+(te gustan)"];
+}

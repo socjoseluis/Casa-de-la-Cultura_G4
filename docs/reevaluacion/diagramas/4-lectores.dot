@@ -1,0 +1,16 @@
+digraph "lectores" {
+  graph [rankdir=LR, bgcolor="white", nodesep=0.6, ranksep=1.4, pad=0.3,
+         fontname="Helvetica", fontsize=16, fontcolor="#2c2825"];
+  node [shape=plain, fontname="Helvetica", fontsize=12, fontcolor="#2c2825"];
+  edge [arrowhead=none, color="#6e6459", penwidth=1.3, fontname="Helvetica", fontsize=11,
+        fontcolor="#2c2825", labelfontsize=12, labelfontcolor="#2c2825", labeldistance=1.6];
+  label="Lectores y valoraciones"; labelloc=t;
+  "LibraryUser" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#e8f3e9"><B>LibraryUser</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>user_id<FONT COLOR="#6e6459">: integer (único)</FONT><BR/>birth_date<FONT COLOR="#6e6459">: date ?</FONT><BR/>comment<FONT COLOR="#6e6459">: text ?</FONT></TD></TR></TABLE>>];
+  "Copy" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#e7eef8"><B>Copy</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>copy_id<FONT COLOR="#6e6459">: integer (único)</FONT><BR/>available<FONT COLOR="#6e6459">: boolean</FONT></TD></TR></TABLE>>];
+  "Rating" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#6e6459"><TR><TD BGCOLOR="#e8f3e9"><B>Rating</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><U>id</U><FONT COLOR="#6e6459">: bigint</FONT><BR/>rating<FONT COLOR="#6e6459">: integer (1-5)</FONT><BR/>created_at<FONT COLOR="#6e6459">: timestamptz</FONT></TD></TR></TABLE>>];
+  ratingpunto [shape=point, width=0.05, color="#6e6459"];
+  { rank=same; ratingpunto; "Rating"; }
+  "LibraryUser" -> ratingpunto [taillabel="*"];
+  ratingpunto -> "Copy" [headlabel="*", label="valora"];
+  ratingpunto -> "Rating" [style=dashed, constraint=false];
+}

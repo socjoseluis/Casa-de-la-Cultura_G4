@@ -430,7 +430,7 @@ LIMIT 10;
 
 Las relaciones principales utilizan claves foráneas gestionadas mediante Django.
 
-Las eliminaciones utilizan `CASCADE` en las relaciones principales:
+Las eliminaciones utilizan `CASCADE` de Django en las relaciones principales (lo aplica Django al borrar desde la aplicación; en PostgreSQL las claves foráneas quedan como `NO ACTION`):
 
 - eliminar un `Book` elimina sus `Copy`.
 - eliminar un `Copy` elimina sus `Rating`.
