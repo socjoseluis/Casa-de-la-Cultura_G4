@@ -44,10 +44,6 @@ TOP_VALORADOS_CACHE = None
 
 TOP_POPULARES_CACHE = None
 
-RECS_USER_CACHE = {}
-
-RECS_BOOK_CACHE = {}
-
 
 
 MAPA_IDIOMAS = {
@@ -98,31 +94,145 @@ def parsear_generos(val):
 
 
 
-def cargar_recomendaciones():
+def obtener_run_activa():
 
-    global RECS_USER_CACHE, RECS_BOOK_CACHE
+    """Ejecución de Apriori cuyas reglas usa la aplicación (None si no hay)."""
 
-    if not RECS_USER_CACHE and os.path.exists('data/recs_usuarios.csv'):
-
-        try:
-
-            df_u = pd.read_csv('data/recs_usuarios.csv')
-
-            RECS_USER_CACHE = df_u.set_index('user_id')[['rec_1', 'rec_2', 'rec_3']].apply(list, axis=1).to_dict()
-
-        except: pass
+    return AprioriRun.objects.filter(is_active=True).first()
 
 
 
-    if not RECS_BOOK_CACHE and os.path.exists('data/recs_libros.csv'):
+def recomendar_por_reglas(libros_origen, excluir=(), limite=3):
 
-        try:
+    """
 
-            df_b = pd.read_csv('data/recs_libros.csv')
+    Recomendaciones a partir de las reglas de la ejecución activa de Apriori.
 
-            RECS_BOOK_CACHE = df_b.set_index('book_id')[['rec_1', 'rec_2', 'rec_3']].apply(list, axis=1).to_dict()
+    @param libros_origen ids (pk) de Book que actúan como antecedente de la regla
 
-        except: pass
+    @param excluir ids (pk) de Book que no se deben recomendar (ya valorados)
+
+    @return lista de dicts {book_id (id original), origen (título del
+
+            antecedente), confianza (%)}, ordenada por confianza y lift,
+
+            sin libros repetidos
+
+    """
+
+    run = obtener_run_activa()
+
+    if not run or not libros_origen:
+
+        return []
+
+    excluir = set(excluir) | set(libros_origen)
+
+    destinos = (
+
+        AssociationRuleTarget.objects
+
+        .filter(rule__run=run, rule__source_book_id__in=list(libros_origen))
+
+        .exclude(book_id__in=list(excluir))
+
+        .order_by('-rule__confidence', '-rule__lift')
+
+        .values_list('book_id', 'book__book_id', 'rule__source_book__title', 'rule__confidence')
+
+    )
+
+    resultado = []
+
+    vistos = set()
+
+    for pk, book_id, origen, confianza in destinos[:500]:
+
+        if pk in vistos:
+
+            continue
+
+        vistos.add(pk)
+
+        resultado.append({'book_id': book_id, 'origen': origen, 'confianza': round(confianza * 100)})
+
+        if len(resultado) >= limite:
+
+            break
+
+    return resultado
+
+
+
+def libros_del_usuario(user_obj, min_rating=1):
+
+    """ids (pk) de los libros que el usuario ha valorado con min_rating o más."""
+
+    return list(
+
+        Rating.objects
+
+        .filter(user=user_obj, rating__gte=min_rating)
+
+        .values_list('copy__book_id', flat=True)
+
+        .distinct()
+
+    )
+
+
+
+def recomendar_a_usuario(user_obj, limite=3):
+
+    """
+
+    Aplica las reglas a los libros que le gustaron al usuario (misma
+
+    valoración mínima que la ejecución activa) y descarta los que ya ha leído.
+
+    """
+
+    run = obtener_run_activa()
+
+    if not run:
+
+        return []
+
+    return recomendar_por_reglas(
+
+        libros_del_usuario(user_obj, run.min_rating),
+
+        excluir=libros_del_usuario(user_obj),
+
+        limite=limite,
+
+    )
+
+
+
+def fichas_recomendadas(df_base, recs):
+
+    """Completa cada recomendación con los datos de su ficha (título, autores, géneros...)."""
+
+    if df_base.empty or not recs:
+
+        return []
+
+    indice = df_base.drop_duplicates('book_id').set_index('book_id')
+
+    fichas = []
+
+    for rec in recs:
+
+        if rec['book_id'] in indice.index:
+
+            ficha = indice.loc[rec['book_id']].to_dict()
+
+            ficha.update(rec)
+
+            fichas.append(ficha)
+
+    return fichas
 
 
 
@@ -683,11 +793,13 @@ def buscador_catalogo(request):
 
     top_valorados_general, top_populares_general = obtener_tops_generales()
 
-    cargar_recomendaciones()
-
 
 
     recomendaciones = []
+
+    # Recomendaciones Apriori para el usuario identificado (se muestran en el
+    # panel de recomendaciones cuando no hay búsqueda ni filtros).
+    recs_usuario = []
 
     top_dinamico = []
 
@@ -696,8 +808,6 @@ def buscador_catalogo(request):
     top_por_genero = []
 
     autor_destacado = ""
-
-    sugerencia = None
 
     valorado = request.GET.get('valorado', '')
 
@@ -713,77 +823,7 @@ def buscador_catalogo(request):
 
             if user_obj:
 
-                top_rating = (
-                    Rating.objects
-                    .filter(user=user_obj)
-                    .select_related('copy__book')
-                    .order_by('-rating', '-created_at')
-                    .first()
-                )
-
-                if top_rating:
-                    ext_id = top_rating.copy.book.book_id
-                    recs_ids = RECS_BOOK_CACHE.get(ext_id, [])
-
-                    if recs_ids:
-                        df_tmp2 = cargar_datos_completos()
-                        destino_row = df_tmp2[df_tmp2['book_id'].isin(recs_ids)].head(1)
-
-                        if not destino_row.empty:
-                            sugerencia = {
-                                'tipo': 'libro',
-                                'origen': top_rating.copy.book.title[:35],
-                                'destino': destino_row.iloc[0]['title'][:35],
-                            }
-
-                if not top_rating:
-                    gustos = str(getattr(user_obj, 'comment', '') or '').strip()
-
-                    if gustos and gustos not in ('nan', 'None'):
-                        generos_usuario = [
-                            g.strip()
-                            for g in gustos.split(',')
-                            if g.strip()
-                        ]
-
-                        if generos_usuario:
-                            df_tmp = cargar_datos_completos()
-                            votos_tmp = obtener_votos_totales()
-
-                            if not df_tmp.empty and not votos_tmp.empty:
-                                import pandas as pd_inner
-
-                                df_tmp = pd_inner.merge(
-                                    df_tmp,
-                                    votos_tmp,
-                                    on='book_id',
-                                    how='left'
-                                ).fillna({
-                                    'votos': 0,
-                                    'nota_media': 0
-                                })
-
-                                df_gen = df_tmp[
-                                    df_tmp['genre_list'].apply(
-                                        lambda x: any(g in x for g in generos_usuario)
-                                    )
-                                ]
-
-                                top_gen = (
-                                    df_gen
-                                    .sort_values(
-                                        ['nota_media', 'votos'],
-                                        ascending=[False, False]
-                                    )
-                                    .head(1)
-                                )
-
-                                if not top_gen.empty:
-                                    sugerencia = {
-                                        'tipo': 'genero',
-                                        'origen': generos_usuario[0],
-                                        'destino': top_gen.iloc[0]['title'][:35],
-                                    }
+                recs_usuario = fichas_recomendadas(df_base, recomendar_a_usuario(user_obj))
 
         except: pass
 
@@ -999,15 +1039,35 @@ def buscador_catalogo(request):
 
                 id_referencia = listado_final[0]['book_id']
 
-                recs_ids = RECS_BOOK_CACHE.get(id_referencia, [])
+                libro_referencia = Book.objects.filter(book_id=id_referencia).first()
 
 
 
-                if recs_ids:
+                if libro_referencia:
 
-                    df_recom = df_base[df_base['book_id'].isin(recs_ids)]
+                    # Reglas Apriori "libro buscado => libros"; si hay un usuario
+                    # identificado, no se le recomiendan libros que ya ha valorado.
+                    ya_leidos = []
 
-                    recomendaciones = df_recom.drop_duplicates(subset=['authors']).head(3).to_dict('records')
+                    if usuario_activo:
+
+                        lector = LibraryUser.objects.filter(user_id=usuario_activo).first()
+
+                        if lector:
+
+                            ya_leidos = libros_del_usuario(lector)
+
+                    recomendaciones = fichas_recomendadas(
+
+                        df_base,
+
+                        recomendar_por_reglas([libro_referencia.pk], excluir=ya_leidos),
+
+                    )
+
+                    if recomendaciones:
+
+                        titulo_recomendacion = f"Quienes disfrutaron «{libro_referencia.title}» también disfrutaron:"
 
 
 
@@ -1031,25 +1091,12 @@ def buscador_catalogo(request):
 
                 if user_obj:
 
-                    top_rating = (
-                        Rating.objects
-                        .filter(user=user_obj)
-                        .select_related('copy__book')
-                        .order_by('-rating', '-created_at')
-                        .first()
-                    )
+                    # Reglas Apriori aplicadas a los libros que le gustaron.
+                    recomendaciones = list(recs_usuario)
 
-                    if top_rating:
-                        ext_id = top_rating.copy.book.book_id
-                        recs_ids = RECS_BOOK_CACHE.get(ext_id, [])
+                    if recomendaciones:
 
-                        if recs_ids:
-                            recomendaciones = (
-                                df_base[df_base['book_id'].isin(recs_ids)]
-                                .drop_duplicates(subset=['authors'])
-                                .head(3)
-                                .to_dict('records')
-                            )
+                        titulo_recomendacion = "Recomendado para ti, según los libros que te gustaron:"
 
                     if not recomendaciones:
                         gustos = str(getattr(user_obj, 'comment', '') or '').strip()
@@ -1152,8 +1199,6 @@ def buscador_catalogo(request):
         'page': pagina_actual,
 
         'total_paginas': total_paginas,
-
-        'sugerencia': sugerencia,
 
         'valorado': valorado,
 

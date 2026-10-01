@@ -55,6 +55,7 @@
         }
 
         .user-info { font-size: 0.95rem; color: var(--text-muted); }
+        .rec-motivo { display: block; margin-top: 8px; font-size: 0.8rem; font-style: italic; color: var(--text-muted); }
         .user-info strong { color: var(--accent); }
         .nav-buttons { display: flex; gap: 15px; align-items: center; }
 
@@ -349,14 +350,6 @@
         <div class="user-info">
             {% if user_active %}
                 Bienvenido, lector <strong>{{ user_active }}</strong>
-                {% if sugerencia %}
-                    &nbsp;·&nbsp;
-                    {% if sugerencia.tipo == 'genero' %}
-                        Como te gusta <em>{{ sugerencia.origen }}</em>, también te podría gustar <em>{{ sugerencia.destino }}</em>
-                    {% else %}
-                        Si te gustó <em>{{ sugerencia.origen }}</em>, también te podría gustar <em>{{ sugerencia.destino }}</em>
-                    {% endif %}
-                {% endif %}
             {% else %}
                 Modo Invitado
             {% endif %}
@@ -399,6 +392,11 @@
                                 <span class="genre-tag">{{ g }}</span>
                             {% endfor %}
                         </div>
+                        {% if rec.origen %}
+                            <small class="rec-motivo" title="Regla de asociación (Apriori): el {{ rec.confianza }} % de quienes disfrutaron «{{ rec.origen }}» también disfrutaron este libro">
+                                🔗 Si te gustó «{{ rec.origen }}» · {{ rec.confianza }} % de coincidencia
+                            </small>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
