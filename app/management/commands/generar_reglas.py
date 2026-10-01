@@ -103,7 +103,8 @@ class Command(BaseCommand):
                     "Prueba con un soporte o una confianza más bajos."
                 )
 
-            self.guardar_reglas(run, reglas, n_transacciones)
+            cobertura = self.calcular_cobertura(transacciones, reglas)
+            self.guardar_reglas(run, reglas, n_transacciones, cobertura)
         except BaseException:
             # Una ejecución fallida o interrumpida (Ctrl+C) no debe quedar a
             # medias en la BBDD.
@@ -211,10 +212,30 @@ class Command(BaseCommand):
         )
         return reglas
 
-    @transaction.atomic
-    def guardar_reglas(self, run, reglas, n_transacciones):
+    def calcular_cobertura(self, transacciones, reglas):
         """
-        Persiste las reglas y activa la ejecución.
+        Mide a cuántos libros y lectores llegan las reglas.
+
+        @return (libros con alguna regla como antecedente,
+                 lectores a los que les gustó al menos uno de esos libros)
+
+        Los antecedentes son siempre libros frecuentes, así que son columnas
+        de la matriz de transacciones.
+        """
+        antecedentes = list({next(iter(a)) for a in reglas["antecedents"]})
+        lectores = int(transacciones[antecedentes].any(axis=1).sum())
+
+        self.stdout.write(
+            f"Cobertura: {len(antecedentes)} libros con reglas, "
+            f"{lectores} de {len(transacciones)} lectores "
+            f"({lectores / len(transacciones):.1%}) pueden recibir recomendaciones por reglas"
+        )
+        return len(antecedentes), lectores
+
+    @transaction.atomic
+    def guardar_reglas(self, run, reglas, n_transacciones, cobertura):
+        """
+        Persiste las reglas, la cobertura y activa la ejecución.
 
         @post existe una única AprioriRun activa: esta
         """
@@ -244,6 +265,7 @@ class Command(BaseCommand):
         run.finished_at = timezone.now()
         run.transactions_count = n_transacciones
         run.rules_count = len(objetos)
+        run.books_with_rules_count, run.covered_users_count = cobertura
         run.is_active = True
         run.save()
 

@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect
 
 from django.http import JsonResponse
 
+from django.db import connection
+
 from django.db.models import Count, Avg
 
 import pandas as pd
@@ -33,6 +35,8 @@ from app.models import (
     AssociationRuleTarget,
 
 )
+
+from app.estadisticas import refrescar_estadisticas
 
 
 
@@ -392,22 +396,23 @@ def obtener_votos_totales():
 
 
 
-    # Votos y nota media calculados desde PostgreSQL (antes se leían de
-    # data/votos_precalculados.csv, que no reflejaba las valoraciones nuevas).
+    # Votos y nota media leídos de la vista materializada estadisticas_libro
+    # (antes se leían de data/votos_precalculados.csv, que no reflejaba las
+    # valoraciones nuevas). La vista se refresca al registrar una valoración.
 
     try:
 
-        qs = (
+        with connection.cursor() as cursor:
 
-            Rating.objects
+            cursor.execute(
 
-            .values('copy__book__book_id')
+                'SELECT b.book_id, e.votos, e.nota_media '
 
-            .annotate(votos=Count('id'), nota_media=Avg('rating'))
+                'FROM estadisticas_libro e JOIN app_book b ON b.id = e.book_id'
 
-        )
+            )
 
-        df_votos = pd.DataFrame(list(qs)).rename(columns={'copy__book__book_id': 'book_id'})
+            df_votos = pd.DataFrame(cursor.fetchall(), columns=['book_id', 'votos', 'nota_media'])
 
         if not df_votos.empty:
 
@@ -1251,6 +1256,9 @@ def valorar_libro(request, book_id):
             defaults={'rating': rating_val}
 
         )
+
+        # La nueva valoración entra en las estadísticas del catálogo y del dashboard.
+        refrescar_estadisticas()
 
         invalidar_cache_votos()
 

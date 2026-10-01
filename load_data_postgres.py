@@ -8,7 +8,7 @@ from django.db import connection
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "casa_cultura.settings")
 django.setup()
 
-from app.models import Book, Author, Genre, Copy, LibraryUser, Rating
+from app.models import AprioriRun, Book, Author, Genre, Copy, LibraryUser, Rating
 
 
 # Tamaño de los lotes para inserciones masivas.
@@ -62,6 +62,11 @@ print()
 # ==========================================================
 
 print("Limpiando datos anteriores...")
+
+# Las ejecuciones de Apriori y sus reglas dependen de los libros que se van a
+# borrar: se eliminan para no dejar una ejecución activa sin reglas. Después
+# de la carga hay que volver a ejecutar generar_reglas.
+AprioriRun.objects.all().delete()
 
 Rating.objects.all().delete()
 Copy.objects.all().delete()
@@ -490,4 +495,18 @@ for motivo, total in omitidos_por_motivo.items():
         print(f"  - {motivo}: {total}")
 print(f"Ratings almacenados: {Rating.objects.count()}")
 print("--------------------------------------")
+
+
+# ==========================================================
+# ESTADÍSTICAS DEL DASHBOARD
+# ==========================================================
+
+# Las vistas materializadas se calculan sobre los datos recién cargados.
+from app.estadisticas import refrescar_estadisticas
+
+print("Actualizando estadísticas del dashboard...")
+for vista, segundos in refrescar_estadisticas().items():
+    print(f"  - {vista}: {segundos:.1f} s")
+
 print("Datos cargados correctamente en PostgreSQL.")
+print("Para generar las recomendaciones: python manage.py generar_reglas")

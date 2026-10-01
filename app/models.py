@@ -123,10 +123,8 @@ class Rating(models.Model):
     class Meta:
         unique_together = ("user", "copy")
 
-        indexes = [
-            models.Index(fields=["user"]),
-            models.Index(fields=["copy"]),
-        ]
+        # No se declaran índices sobre user ni copy: Django ya crea uno por
+        # cada clave foránea y declararlos aquí los duplicaba en PostgreSQL.
 
         constraints = [
             models.CheckConstraint(
@@ -205,6 +203,25 @@ class AprioriRun(models.Model):
         ]
     )
 
+    # Cobertura de la ejecución, calculada al generar las reglas:
+    # libros con alguna regla como antecedente y lectores a los que les gustó
+    # al menos uno de esos libros (pueden recibir recomendaciones por reglas).
+    books_with_rules_count = models.IntegerField(
+        blank=True,
+        null=True,
+        validators=[
+            MinValueValidator(0),
+        ]
+    )
+
+    covered_users_count = models.IntegerField(
+        blank=True,
+        null=True,
+        validators=[
+            MinValueValidator(0),
+        ]
+    )
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -261,6 +278,22 @@ class AprioriRun(models.Model):
                     | models.Q(rules_count__gte=0)
                 ),
                 name="apriori_rules_non_negative"
+            ),
+
+            models.CheckConstraint(
+                condition=(
+                    models.Q(books_with_rules_count__isnull=True)
+                    | models.Q(books_with_rules_count__gte=0)
+                ),
+                name="apriori_books_with_rules_non_negative"
+            ),
+
+            models.CheckConstraint(
+                condition=(
+                    models.Q(covered_users_count__isnull=True)
+                    | models.Q(covered_users_count__gte=0)
+                ),
+                name="apriori_covered_users_non_negative"
             ),
         ]
 
