@@ -46,7 +46,7 @@ El enunciado de la reevaluación introduce requisitos nuevos y obligatorios. Se 
 | AN-06 | Versión móvil o acceso remoto desde otros equipos. | S2 min 15: el uso es en el PC de la sala; Charter §4.2. |
 | AN-07 | Adaptación legal completa (contratación pública, protección de datos). | S2 min 38: *"de momento para esta demo no nos hace falta"*. |
 | AN-08 | Compra o digitalización de libros para cubrir idiomas que faltan. | S5 min 2-3: *"no podemos comenzar a comprar más libros, porque no estaba previsto"*. |
-| AN-09 | Instalador para el PC de la sala (Windows 11) con PostgreSQL incluido. | No lo exige el enunciado de la reevaluación y el anterior dependía de SQLite. Se plantea como siguiente iteración (PostgreSQL en modo portable). |
+| AN-09 | Instalador para el PC de la sala (Windows 11) con PostgreSQL incluido. | No lo exige el enunciado de la reevaluación y el profesor confirmó que no es necesario en esta entrega (consulta del 01/10/2026). El anterior dependía de SQLite. Se plantea como siguiente iteración (PostgreSQL en modo portable). |
 
 ---
 
@@ -118,7 +118,7 @@ Se sigue la definición de la asignatura: **S**pecific, **M**easurable, **A**gre
 
 | ID | Criterio | Cómo se comprueba | Estado |
 |---|---|---|---|
-| CS-01 | Un operador sin formación técnica encuentra en el dashboard los 5 libros más leídos y el género preferido de los lectores en menos de 2 minutos. | Prueba guiada con personal de la Casa de la Cultura. | Pendiente de validar con el cliente en la entrega. |
+| CS-01 | Los libros más leídos y los géneros preferidos se consultan con un solo clic desde el catálogo, sin configurar nada. | Desde el catálogo, botón «Ver más estadísticas». | ✅ |
 | CS-02 | Las recomendaciones se entienden: cada una indica el libro que la origina. | Revisión de la pantalla de recomendaciones. | ✅ «Si te gustó X · N % de coincidencia» |
 | CS-03 | El dashboard usa un lenguaje no técnico; los detalles del algoritmo quedan en un apartado aparte. | Revisión del dashboard. | ✅ «Detalles técnicos» plegable |
 
