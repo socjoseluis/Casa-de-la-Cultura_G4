@@ -129,8 +129,7 @@ class Command(BaseCommand):
         ser frecuente si alguno de sus libros no lo es) y reduce la memoria.
         """
         t = time.monotonic()
-        # Paso 1. Entrada desde PostgreSQL: los libros que cada lector valoró
-        # con 4 o 5 estrellas (--min-rating). Cada lector es una "cesta".
+        # ── PASO 1 · Leer de PostgreSQL los libros que gustaron (4 o 5 estrellas)
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -181,9 +180,7 @@ class Command(BaseCommand):
                 confidence, lift), ordenado por lift descendente
         """
         t = time.monotonic()
-        # Paso 2. Apriori busca los grupos de libros que gustan juntos a muchos
-        # lectores: soporte mínimo (1 % por defecto), grupos de hasta max_len
-        # libros y low_memory para no pasar de ~1 GB de RAM (sin él, 28 GB).
+        # ── PASO 2 · Apriori: grupos de libros que gustan juntos
         conjuntos = apriori(
             transacciones,
             min_support=soporte,
@@ -200,16 +197,14 @@ class Command(BaseCommand):
             return pd.DataFrame(columns=["antecedents", "consequents", "support", "confidence", "lift"])
 
         t = time.monotonic()
-        # Paso 3. De esos grupos salen las reglas "si te gusta A, te gustan B
-        # (y C)" que superan la confianza mínima (30 % por defecto).
+        # ── PASO 3 · Reglas "si te gusta A, te gusta B" (confianza mínima)
         reglas = association_rules(
             conjuntos,
             num_itemsets=n_transacciones,
             metric="confidence",
             min_threshold=confianza,
         )
-        # Paso 4. Solo reglas con un libro de partida y lift >= 1: más
-        # frecuentes de lo que saldría por casualidad.
+        # ── PASO 4 · Filtro: un libro de partida y lift >= 1
         reglas = reglas[
             (reglas["antecedents"].apply(len) == 1)
             & (reglas["lift"] >= min_lift)
@@ -241,8 +236,7 @@ class Command(BaseCommand):
         )
         return len(antecedentes), lectores
 
-    # Paso 5. Salida del algoritmo -> entrada en PostgreSQL. Todo en una
-    # transacción: si algo falla, no se guarda nada y sigue la ejecución anterior.
+    # ── PASO 5 · Guardar en PostgreSQL (todo en una transacción)
     @transaction.atomic
     def guardar_reglas(self, run, reglas, n_transacciones, cobertura):
         """
@@ -252,7 +246,7 @@ class Command(BaseCommand):
         """
         t = time.monotonic()
 
-        # Cada regla: libro de partida, soporte, confianza y lift.
+        # Reglas
         objetos = [
             AssociationRule(
                 run=run,
@@ -266,7 +260,7 @@ class Command(BaseCommand):
         # En PostgreSQL bulk_create devuelve los objetos con su id.
         objetos = AssociationRule.objects.bulk_create(objetos, batch_size=5000)
 
-        # Los libros recomendados de cada regla.
+        # Libros recomendados
         destinos = [
             AssociationRuleTarget(rule=regla, book_id=int(libro))
             for regla, consecuente in zip(objetos, reglas["consequents"])
@@ -274,7 +268,7 @@ class Command(BaseCommand):
         ]
         AssociationRuleTarget.objects.bulk_create(destinos, batch_size=5000)
 
-        # Esta ejecución pasa a ser la activa; la anterior queda como historial.
+        # Activar esta ejecución
         AprioriRun.objects.filter(is_active=True).update(is_active=False)
         run.finished_at = timezone.now()
         run.transactions_count = n_transacciones
